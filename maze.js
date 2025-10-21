@@ -15,6 +15,7 @@ class Cell {
             left: true,
         };
         this.visited = false;
+        this.visitOrder = 0;
     }
 
     draw(ctx, cellWidth) {
@@ -126,12 +127,13 @@ class Cell {
 }
 
 class Maze {
-    constructor(cols, rows, canvas) {
+    constructor(cols, rows, canvas, randomness = 0.5) {
         this.grid = [];
         this.cols = cols;
         this.rows = rows;
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
+        this.randomness = randomness;
         this.cellWidth = canvas.width / cols;
         this.initializeGrid();
     }
@@ -161,15 +163,6 @@ class Maze {
 
         currentCell.visited = true;
 
-        // Get unvisited neighbors
-        // If there are unvisited neighbors:
-        // - pick a random one of them
-        // - carve a hole through the wall
-        // - push current cell on stack
-        // - make that neighbor the current cell
-        // If not, make the top of stack the current cell
-        // If still not, you're done
-
         while (currentCell != null) {
             let unvisitedNeighbors = currentCell.unvisitedNeighbors(this.grid);
             if (unvisitedNeighbors.length > 0) {
@@ -179,18 +172,51 @@ class Maze {
                 currentCell = randomNeighborCell;
                 currentCell.visited = true;
             } else {
-                currentCell = stack.pop();
+                if (stack.length > 0) {
+                    if (Math.random() < this.randomness) {
+                    const randomIndex = randomInteger(0, stack.length);
+                    currentCell = stack.splice(randomIndex, 1)[0];
+                } else {
+                    currentCell = stack.pop();
+                }
+            } else {
+                currentCell = null;
             }
+        }
         }
     }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
     const canvas = document.getElementById('canvas');
-    const maze = new Maze(20, 20, canvas);
 
-    // TODO: Fjern nogle af væggene på en smart måde.
+    const size = Math.min(window.innerWidth, window.innerHeight) * 0.9;
+    canvas.width = size;
+    canvas.height = size;
+    
+    const maze = new Maze(20, 20, canvas, 0.5);
+
     maze.generate();
+
+    const breakChance = 0.125; // 12.5% chance for at bryde en væg mellem naboceller
+
+    for (let x = 0; x < maze.cols; x++) {
+        for (let y = 0; y < maze.rows; y++) {
+            const cell = maze.grid[x][y];
+            if (Math.random() < breakChance) {
+                const neighbors = [];
+                if (x > 0) neighbors.push(maze.grid[x - 1][y]); // venstre
+                if (x < maze.cols - 1) neighbors.push(maze.grid[x + 1][y]); // højre
+                if (y > 0) neighbors.push(maze.grid[x][y - 1]); // over
+                if (y < maze.rows - 1) neighbors.push(maze.grid[x][y + 1]); // under
+
+                if (neighbors.length > 0) {
+                    const randomNeighbor = neighbors[randomInteger(0, neighbors.length)];
+                    cell.punchWallDown(randomNeighbor);
+                }
+            }
+        }
+    }
 
     maze.draw();
 
